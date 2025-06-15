@@ -1,0 +1,10 @@
+google-auth-oauthlib
+google-api-python-client
+yt-dlp
+requests
+pydantic
+fastapi
+python-dotenv
+pytest
+pytest-asyncio
+textual
