@@ -1,0 +1,32 @@
+# Grabber Agent Configuration
+
+youtube:
+  # Option 1: Use API key (limited to public videos only)
+  api_key: "YOUR_API_KEY"
+  
+  # Option 2: Use OAuth (recommended for accessing all liked videos)
+  client_secrets:
+    client_id: "YOUR_CLIENT_ID"
+    client_secret: "YOUR_CLIENT_SECRET"
+    project_id: "YOUR_PROJECT_ID"
+
+analyzer:
+  # Integration settings
+  url: "http://localhost:8002/analyze"
+  watch_dir: "/tmp/analyzer_watch"
+  
+  # Queue settings (if using message queue integration)
+  redis:
+    host: "localhost"
+    port: 6379
+    queue: "analyzer_queue"
+  
+  rabbitmq:
+    host: "localhost"
+    queue: "analyzer_queue"
+
+download:
+  # Download settings
+  output_dir: "downloads"
+  audio_format: "mp3"
+  audio_quality: "0"  # Best quality

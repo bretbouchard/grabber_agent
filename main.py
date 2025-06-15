@@ -31,10 +31,12 @@ def parse_args():
                        help="Port for the API server")
     parser.add_argument("--config", type=str, default="config.yml",
                        help="Path to config file")
-    parser.add_argument("--interval", type=int, default=300,
-                       help="Polling interval in seconds")
+    parser.add_argument("--interval", type=int, default=1800,
+                       help="Polling interval in seconds (default: 30 minutes)")
     parser.add_argument("--no-daemon", action="store_true",
                        help="Don't run as a daemon (run once and exit)")
+    parser.add_argument("--force", action="store_true",
+                       help="Force checking even if cache is still valid")
     
     return parser.parse_args()
 
@@ -56,11 +58,15 @@ async def main():
         while True:
             try:
                 await run_once(youtube_client, downloader, analyzer)
+                logger.info("Process completed successfully")
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
             
-            logger.info(f"Sleeping for {args.interval} seconds")
-            await asyncio.sleep(args.interval)
+            # Use a longer interval to reduce API quota usage
+            # Default is now 30 minutes instead of 5 minutes
+            interval = args.interval if args.interval else 1800
+            logger.info(f"Sleeping for {interval} seconds")
+            await asyncio.sleep(interval)
 
 
 async def run_once(youtube_client, downloader, analyzer):

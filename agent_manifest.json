@@ -1,0 +1,8 @@
+{
+    "name": "grabber_agent",
+    "version": "0.1.0",
+    "entrypoint": "main.py",
+    "api_module": "api.py",
+    "api_prefix": "/grabber",
+    "description": "YouTube Music integration agent for downloading audio from liked videos"
+}
