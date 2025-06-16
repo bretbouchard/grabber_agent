@@ -6,6 +6,7 @@ Uses yt-dlp to download audio from YouTube videos.
 import os
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 import subprocess
@@ -83,7 +84,7 @@ class AudioDownloader:
             # If we couldn't find the exact file, look for any new files with the video ID
             for file in self.output_dir.glob(f"*.{self.audio_format}"):
                 # Check if this is a recent file
-                if (file.stat().st_mtime > (os.time() - 60)):  # File created in the last minute
+                if (file.stat().st_mtime > (time.time() - 60)):  # File created in the last minute
                     return file
             
             return None

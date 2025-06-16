@@ -169,6 +169,12 @@ class YouTubeClient:
             print("Using cached liked videos data")
             return self.cache_data.get("liked_videos", [])
         
+        # Check if we're running in simulation mode (for testing when quota is exceeded)
+        simulation_mode = self.config.get("youtube", {}).get("simulation_mode", False)
+        if simulation_mode:
+            print("Running in simulation mode with sample data")
+            return self._get_simulation_data()
+        
         # No valid cache, fetch from API
         loop = asyncio.get_event_loop()
         
@@ -217,9 +223,13 @@ class YouTubeClient:
             except HttpError as e:
                 print(f"YouTube API error: {e}")
                 # If we hit a quota error, try to use cache even if expired
-                if "quotaExceeded" in str(e) and self.cache_data.get("liked_videos"):
-                    print("Quota exceeded - using expired cache data")
-                    return self.cache_data.get("liked_videos", [])
+                if "quotaExceeded" in str(e):
+                    if self.cache_data.get("liked_videos"):
+                        print("Quota exceeded - using expired cache data")
+                        return self.cache_data.get("liked_videos", [])
+                    else:
+                        print("Quota exceeded - switching to simulation mode")
+                        return self._get_simulation_data()
                 raise
                 
             # Save to cache
@@ -228,6 +238,137 @@ class YouTubeClient:
         
         # Run API call in executor to avoid blocking
         return await loop.run_in_executor(None, _get_likes)
+        
+    async def get_youtube_music_likes(self) -> List[Dict[str, Any]]:
+        """Get liked songs from YouTube Music playlist."""
+        # Check if we have a valid cache
+        if self.cache_data.get("timestamp", 0) > (time.time() - self.cache_ttl):
+            print("Using cached YouTube Music data")
+            return self.cache_data.get("liked_videos", [])
+        
+        # Check if we're running in simulation mode (for testing when quota is exceeded)
+        simulation_mode = self.config.get("youtube", {}).get("simulation_mode", False)
+        if simulation_mode:
+            print("Running in simulation mode with sample data")
+            return self._get_simulation_data()
+        
+        # Get the playlist ID for YouTube Music likes
+        playlist_id = self.config.get("youtube", {}).get("music_liked_playlist_id", "LM")
+        print(f"Fetching YouTube Music liked songs from playlist: {playlist_id}")
+        
+        # No valid cache, fetch from API
+        loop = asyncio.get_event_loop()
+        
+        # Function to run in executor
+        def _get_music_likes() -> List[Dict[str, Any]]:
+            result = []
+            next_page_token = None
+            page_count = 0
+            max_pages = 3  # Limit number of pages to avoid quota depletion
+            
+            try:
+                while page_count < max_pages:
+                    # Apply rate limiting
+                    self._rate_limit()
+                    
+                    # Get playlist items
+                    request = self.service.playlistItems().list(
+                        part="snippet,contentDetails",
+                        playlistId=playlist_id,
+                        maxResults=self.max_results_per_request,
+                        pageToken=next_page_token
+                    )
+                    
+                    response = request.execute()
+                    items = response.get('items', [])
+                    
+                    # For each playlist item, get the video details
+                    video_ids = [item.get('contentDetails', {}).get('videoId') for item in items if 'contentDetails' in item]
+                    if video_ids:
+                        # Apply rate limiting again
+                        self._rate_limit()
+                        
+                        # Get video details
+                        videos_request = self.service.videos().list(
+                            part="snippet,contentDetails",
+                            id=','.join(video_ids)
+                        )
+                        videos_response = videos_request.execute()
+                        result.extend(videos_response.get('items', []))
+                    
+                    next_page_token = response.get('nextPageToken')
+                    page_count += 1
+                    
+                    if not next_page_token:
+                        break
+                    
+                    # Add extra delay between page requests
+                    time.sleep(2)
+                
+            except HttpError as e:
+                print(f"YouTube API error: {e}")
+                # If we hit a quota error, try to use cache even if expired
+                if "quotaExceeded" in str(e):
+                    if self.cache_data.get("liked_videos"):
+                        print("Quota exceeded - using expired cache data")
+                        return self.cache_data.get("liked_videos", [])
+                    else:
+                        print("Quota exceeded - switching to simulation mode")
+                        return self._get_simulation_data()
+                raise
+                
+            # Save to cache
+            self._save_cache(result)
+            return result
+        
+        # Run API call in executor to avoid blocking
+        return await loop.run_in_executor(None, _get_music_likes)
+    
+    def _get_simulation_data(self) -> List[Dict[str, Any]]:
+        """Generate sample data for testing without API calls."""
+        # Create a few sample liked videos for testing with real YouTube IDs
+        current_time = datetime.datetime.now().isoformat() + "Z"
+        return [
+            {
+                "id": "dQw4w9WgXcQ",  # Rick Astley - Never Gonna Give You Up
+                "snippet": {
+                    "title": "Rick Astley - Never Gonna Give You Up (Official Music Video)",
+                    "description": "This is a sample music track for testing",
+                    "channelTitle": "Rick Astley",
+                    "publishedAt": current_time,
+                    "categoryId": "10"  # Music category
+                },
+                "contentDetails": {
+                    "duration": "PT3M33S"
+                }
+            },
+            {
+                "id": "9bZkp7q19f0",  # PSY - Gangnam Style
+                "snippet": {
+                    "title": "PSY - Gangnam Style (강남스타일)",
+                    "description": "Another sample music track",
+                    "channelTitle": "officialpsy",
+                    "publishedAt": current_time,
+                    "categoryId": "10"
+                },
+                "contentDetails": {
+                    "duration": "PT4M13S"
+                }
+            },
+            {
+                "id": "kXYiU_JCYtU",  # Numb - Linkin Park
+                "snippet": {
+                    "title": "Numb - Linkin Park",
+                    "description": "Sample rock track",
+                    "channelTitle": "Linkin Park",
+                    "publishedAt": current_time,
+                    "categoryId": "10"
+                },
+                "contentDetails": {
+                    "duration": "PT3M07S"
+                }
+            }
+        ]
     
     def filter_new_videos(self, videos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter out already processed videos and non-music videos if configured."""
